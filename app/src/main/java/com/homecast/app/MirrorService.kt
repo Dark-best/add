@@ -150,7 +150,7 @@ class MirrorService : Service() {
         peerConnection?.addTrack(videoTrack, listOf("homecast_stream"))
 
         // 4. Connexion WebSocket au serveur de signaling
-        val wsUrl = "ws://$serverIp:8080/signal?room=$roomId&role=sender"
+        val wsUrl = "ws://$serverIp:8090/signal?room=$roomId&role=sender"
         wsClient = object : WebSocketClient(URI(wsUrl)) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 createOffer()
