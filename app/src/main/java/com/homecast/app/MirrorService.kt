@@ -4,14 +4,14 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
 import android.util.DisplayMetrics
+import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
@@ -22,7 +22,6 @@ import java.net.URI
 class MirrorService : Service() {
 
     private var mediaProjection: MediaProjection? = null
-    private var virtualDisplay: VirtualDisplay? = null
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var videoCapturer: VideoCapturer? = null
@@ -85,9 +84,9 @@ class MirrorService : Service() {
             .setVideoDecoderFactory(decoderFactory)
             .createPeerConnectionFactory()
 
-        // 2. Capture d'écran via MediaProjection -> source vidéo WebRTC
+        // 2. Récupération du MediaProjection à partir du résultat de permission
         val projectionManager =
-            getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjection = projectionManager.getMediaProjection(resultCode, data)
 
         val surfaceTextureHelper =
@@ -95,14 +94,20 @@ class MirrorService : Service() {
 
         val videoSource = peerConnectionFactory!!.createVideoSource(false)
 
+        // windowManager n'existe pas dans un Service, on le récupère explicitement
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
         windowManager.defaultDisplay.getRealMetrics(metrics)
         val width = metrics.widthPixels
         val height = metrics.heightPixels
         val dpi = metrics.densityDpi
 
+        // ScreenCapturerAndroid attend l'Intent original (permissionResultData), pas
+        // l'objet MediaProjection déjà résolu
         val capturer = ScreenCapturerAndroid(
-            mediaProjection, object : MediaProjection.Callback() {
+            data,
+            object : MediaProjection.Callback() {
                 override fun onStop() {
                     stopSelf()
                 }
@@ -184,7 +189,8 @@ class MirrorService : Service() {
     private fun createOffer() {
         val constraints = MediaConstraints()
         peerConnection?.createOffer(object : SimpleSdpObserver() {
-            override fun onCreateSuccess(sdp: SessionDescription) {
+            override fun onCreateSuccess(sdp: SessionDescription?) {
+                if (sdp == null) return
                 peerConnection?.setLocalDescription(SimpleSdpObserver(), sdp)
                 sendSignal(JSONObject().apply {
                     put("type", "offer")
@@ -212,7 +218,7 @@ class MirrorService : Service() {
     }
 }
 
-// Observer SDP minimal, on n'a besoin que des callbacks succès pour ce cas d'usage
+// Observer SDP minimal, signature exacte de l'interface SdpObserver de la lib WebRTC
 open class SimpleSdpObserver : SdpObserver {
     override fun onCreateSuccess(p0: SessionDescription?) {}
     override fun onSetSuccess() {}
