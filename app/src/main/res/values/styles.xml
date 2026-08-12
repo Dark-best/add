@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.HomeCast" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#00E5FF</item>
+        <item name="colorPrimaryDark">#000000</item>
+        <item name="android:windowBackground">#0A0A0A</item>
+        <item name="colorAccent">#00E5FF</item>
+    </style>
+</resources>
